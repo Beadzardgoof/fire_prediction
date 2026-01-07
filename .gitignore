@@ -1,0 +1,32 @@
+# Environment variables
+.env
+
+# Data files (but keep code modules)
+data/modis_fire/
+data/*.shp
+data/*.shx
+data/*.dbf
+data/*.prj
+data/*.cpg
+data/*.csv
+data/*.json
+data/*.tif
+data/*.tiff
+data/*.hgt
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
