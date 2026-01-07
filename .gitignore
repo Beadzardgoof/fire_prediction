@@ -2,7 +2,6 @@
 .env
 
 # Data files (but keep code modules)
-data/modis_fire/
 data/*.shp
 data/*.shx
 data/*.dbf
