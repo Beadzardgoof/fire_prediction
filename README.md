@@ -48,8 +48,8 @@ the * * around a given data source indicates that it has been selected for use, 
 |---------|-----------|-------|--------|
 | 3-day consecutive dry, wet, humid index | Float | Normalized numeric; each index is a column | *NASA POWER* (precipitation, humidity), ERA5 reanalysis, MODIS LST | - data/nasa_power
 | 14-day fuel conditioning index | Float | Weighted sum of dryness/wetness; continuous | ERA5, NASA POWER, MODIS vegetation dryness proxies (NDVI, NBR) | - data/nasa_power
-| Weighted weather extremes (wind, rain) over 12h | Float or Array | Exponential weighting of extremes; can be aggregated or sequence | HRRR (US), GFS (global) |-
-| Soft binary threshold (humidity/wetness vs temperature) | Float (0–1) | Represents probability of exceeding ignition thresholds | Computed from weather features |
+| Weighted weather extremes (wind, rain) over 12h | Float or Array | Exponential weighting of extremes; can be aggregated or sequence | HRRR (US), GFS (global) | - data/nasa_power
+| Soft binary threshold (humidity/wetness vs temperature) | Float (0–1) | Represents probability of exceeding ignition thresholds | Computed from weather features | - data/nasa_power
 
 ## 2. Geospatial / Terrain Features
 
