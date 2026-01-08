@@ -46,7 +46,7 @@ the * * around a given data source indicates that it has been selected for use, 
 
 | Feature | Data Type | Notes | Source |
 |---------|-----------|-------|--------|
-| 3-day consecutive dry, wet, humid index | Float | Normalized numeric; each index is a column | *NASA POWER* (precipitation, humidity), ERA5 reanalysis, MODIS LST | - data/nasa_power
+| 3-day consecutive dry, wet, humid index | Float | Normalized numeric; each index is a column |(precipitation, humidity), ERA5 reanalysis, MODIS LST | - data/nasa_power
 | 14-day fuel conditioning index | Float | Weighted sum of dryness/wetness; continuous | ERA5, NASA POWER, MODIS vegetation dryness proxies (NDVI, NBR) | - data/nasa_power
 | Weighted weather extremes (wind, rain) over 12h | Float or Array | Exponential weighting of extremes; can be aggregated or sequence | HRRR (US), GFS (global) | - data/nasa_power
 | Soft binary threshold (humidity/wetness vs temperature) | Float (0–1) | Represents probability of exceeding ignition thresholds | Computed from weather features | - data/nasa_power
@@ -55,19 +55,19 @@ the * * around a given data source indicates that it has been selected for use, 
 
 | Feature | Data Type | Notes | Source |
 |---------|-----------|-------|--------|
-| Slope | Float | Degrees or percent | SRTM DEM (30m), NASADEM |
-| Ruggedness | Float | Terrain roughness index | Computed from DEM |
-| Elevation | Float | Meters | SRTM / NASADEM |
-| Curvature | Float | Concavity/convexity measure | Derived from DEM |
-| Canyons | Float / Binary | Depth or presence of steep terrain | DEM-derived |
-| Distance to body of water | Float | Meters; continuous | HydroSHEDS, OpenStreetMap rivers/lakes |
+| Slope | Float | Degrees or percent | SRTM DEM (30m), NASADEM | -data/nasa_dem
+| Ruggedness | Float | Terrain roughness index | Computed from DEM | -data/nasa_dem
+| Elevation | Float | Meters | SRTM / NASADEM | -data/nasa_dem
+| Curvature | Float | Concavity/convexity measure | Derived from DEM | -data/nasa_dem
+| Canyons | Float / Binary | Depth or presence of steep terrain | DEM-derived | -data/nasa_dem
+| Distance to body of water | Float | Meters; continuous | HydroSHEDS, OpenStreetMap rivers/lakes | -data/google_gee
 
 ## 3. Vegetation / Fuel Features
 
 | Feature | Data Type | Notes | Source |
 |---------|-----------|-------|--------|
-| Forest types | One-hot categorical | Each type is a binary column | MODIS Land Cover (MCD12Q1), ESA CCI Land Cover |
-| Fuel layers / load | One-hot categorical or numeric | Encodes multiple fuel strata | LANDFIRE (US), Global Fuel Database, FAO forest layers |
+| Forest types | One-hot categorical | Each type is a binary column | MODIS Land Cover (MCD12Q1), ESA CCI Land Cover |-data/google_gee
+| Fuel layers / load | One-hot categorical or numeric | Encodes multiple fuel strata | LANDFIRE (US), Global Fuel Database, FAO forest layers | -data/google_gee & -data/gfd (to be implemented later)
 
 ## 4. Temporal / Circular Features
 

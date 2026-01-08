@@ -1,0 +1,29 @@
+/* DATA DESCRIPTION:
+Citation:	Pettinari, M Lucrecia (2015): Global Fuelbed Dataset [dataset]. Department of Geology, Geography and Environment, University of Alcala, Spain, PANGAEA, https://doi.org/10.1594/PANGAEA.849808
+Abstract:	This dataset presents the first global fuel map, containing all the parameters required to be input in the Fuel Characteristic Classification System (FCCS). The dataset was developed from different spatial variables, both based on satellite Earth observation products and fuel databases, and is comprised by a global fuelbed map and a database that includes the parameters of each fuelbed that affect fire behavior and effects. A total of 274 fuelbeds were created and parameterized, and can be input into FCCS to obtain fire potentials, surface fire behavior and carbon biomass for each fuelbed.
+	The global fuel dataset can be used for a varied range of applications, including fire danger assessment, fire behavior estimations, fuel consumption calculations and emissions inventories.
+Related to:	Pettinari, M Lucrecia; Chuvieco, Emilio (2016): Generation of a global fuel data set using the Fuel Characteristic Classification System. Biogeosciences, 13(7), 2061-2076, https://doi.org/10.5194/bg-13-2061-2016
+Original version:	Global fuelbeds parameters - original version (URI: https://store.pangaea.de/Publications/Pettinari_2015/Global_fuelbeds_parameters.zip) (Version 1)
+	Global fuelbeds parameters v1.1 (URI: https://download.pangaea.de/reference/130106/attachments/Global_fuelbeds_parameters_v1.1.xlsx) (Version 1.1 (2020-08-18))
+Comment:	On 2020-08-18 the file Global_fuelbeds_parameters was exchanged due to errors. The old version is still linked here as "Original version".
+	On 2024-11-07 the file Global_fuelbeds_parameters was exchanged due to an enumeration update in FCCS. The former versions are still linked here as "Original version".
+Parameter(s):	File name (File name) * PI: Pettinari, M Lucrecia (https://orcid.org/0000-0002-7472-4373, mlucrecia.pettinari@uah.es)
+	File size [kByte] (File size) * PI: Pettinari, M Lucrecia (https://orcid.org/0000-0002-7472-4373, mlucrecia.pettinari@uah.es)
+	Uniform resource locator/link to file (URL file) * PI: Pettinari, M Lucrecia (https://orcid.org/0000-0002-7472-4373, mlucrecia.pettinari@uah.es)
+Change history:	2020-08-18T04:56:19 - File Global_fuelbeds_parameters.zip exchanged
+	2024-11-07T10:59:02 - File Global_fuelbeds_parameters_v1.2 replaces version 1.1
+License:	Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported (CC-BY-NC-SA-3.0) (URI: https://creativecommons.org/licenses/by-nc-sa/3.0/)
+Size:	33 data points
+*/
+File name	File size [kByte]	URL file
+Global_fuelbeds_map_Tile1.zip	55250	https://store.pangaea.de/Publications/Pettinari_2015/Global_fuelbeds_map_Tile1.zip
+Global_fuelbeds_map_Tile2.zip	72300	https://store.pangaea.de/Publications/Pettinari_2015/Global_fuelbeds_map_Tile2.zip
+Global_fuelbeds_map_Tile3.zip	68530	https://store.pangaea.de/Publications/Pettinari_2015/Global_fuelbeds_map_Tile3.zip
+Global_fuelbeds_map_Tile4.zip	86320	https://store.pangaea.de/Publications/Pettinari_2015/Global_fuelbeds_map_Tile4.zip
+Global_fuelbeds_map_Tile5.zip	66120	https://store.pangaea.de/Publications/Pettinari_2015/Global_fuelbeds_map_Tile5.zip
+Global_fuelbeds_map_Tile6.zip	87720	https://store.pangaea.de/Publications/Pettinari_2015/Global_fuelbeds_map_Tile6.zip
+Global_fuelbeds_map_Tile7.zip	82250	https://store.pangaea.de/Publications/Pettinari_2015/Global_fuelbeds_map_Tile7.zip
+Global_fuelbeds_map_Tile8.zip	30990	https://store.pangaea.de/Publications/Pettinari_2015/Global_fuelbeds_map_Tile8.zip
+Global_fuelbeds_parameters.xlsx	4645	https://store.pangaea.de/Publications/Pettinari_2015/Global_fuelbeds_parameters_v1.2.xlsx
+Global_Fuelbed_Dataset_Readme.pdf	459	https://store.pangaea.de/Publications/Pettinari_2015/Global_Fuelbed_Dataset_Readme.pdf
+Global_fuelbeds_map.lyr	79	https://store.pangaea.de/Publications/Pettinari_2015/Global_fuelbeds_map.lyr
