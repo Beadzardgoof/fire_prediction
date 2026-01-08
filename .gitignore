@@ -29,3 +29,6 @@ __pycache__/
 *.swp
 *.swo
 *~
+
+#secret keys outside of env
+organic-vortex-444920-m3-e13aba1e5a12.json
