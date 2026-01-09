@@ -76,21 +76,90 @@ def _parse_nasa_power_json(response_json):
     # Build list of records
     records = []
     
+    # Handle case where parameters might not be a dict (shouldn't happen, but be defensive)
+    if not isinstance(parameters, dict):
+        # If parameters is not a dict, return empty DataFrame
+        # This can happen if NASA POWER returns an error or unexpected format
+        # Also happens when requesting future dates (NASA POWER doesn't have future data)
+        return pd.DataFrame()
+    
+    # Check if parameters dict is empty (no data available, e.g., future dates)
+    if len(parameters) == 0:
+        return pd.DataFrame()
+    
     # Iterate through each parameter
+    # NOTE: NASA POWER may return data in different formats:
+    #   1. Combined date+hour keys: { "2024010100": value, "2024010101": value, ... }
+    #   2. Nested hourly: { "20240101": { "00": value, "01": value, ... } }
+    #   3. Daily scalar: { "20240101": value, "20240102": value, ... }
     for param_name, param_data in parameters.items():
-        # Iterate through dates
-        for date_str, hourly_data in param_data.items():
-            # Iterate through hours
-            for hour_str, value in hourly_data.items():
-                # Create datetime from date and hour
-                dt_str = f"{date_str}{hour_str.zfill(2)}"
-                dt = datetime.strptime(dt_str, "%Y%m%d%H")
-                
-                records.append({
-                    'datetime': dt,
-                    'parameter': param_name,
-                    'value': value
-                })
+        if not isinstance(param_data, dict):
+            # Unexpected structure; skip this parameter
+            continue
+        
+        # Check the first key to determine the format
+        # NASA POWER can return:
+        #   1. Combined format: {'2025122200': value, '2025122201': value, ...} (10-digit YYYYMMDDHH keys)
+        #   2. Nested format: {'20251222': {'00': value, '01': value, ...}}
+        #   3. Daily format: {'20251222': value, '20251223': value, ...}
+        first_key = next(iter(param_data.keys())) if param_data else None
+        
+        # Check if keys are in combined YYYYMMDDHH format (10 digits)
+        if first_key:
+            first_key_str = str(first_key)
+            is_combined_format = (len(first_key_str) == 10 and first_key_str.isdigit())
+        else:
+            is_combined_format = False
+        
+        if is_combined_format:
+            # Format 1: Combined date+hour keys (YYYYMMDDHH format, 10 digits)
+            # Example: '2025122200', '2025122201', etc.
+            for datetime_str, value in param_data.items():
+                try:
+                    # Parse YYYYMMDDHH format directly
+                    datetime_str_clean = str(datetime_str).strip()
+                    if len(datetime_str_clean) == 10 and datetime_str_clean.isdigit():
+                        dt = datetime.strptime(datetime_str_clean, "%Y%m%d%H")
+                        records.append({
+                            'datetime': dt,
+                            'parameter': param_name,
+                            'value': value
+                        })
+                except (ValueError, TypeError):
+                    # Skip invalid datetime or value
+                    continue
+        else:
+            # Format 2 or 3: Nested or daily structure
+            # Iterate through dates
+            for date_str, daily_or_hourly in param_data.items():
+                # If we get a dict, assume nested hourly values
+                if isinstance(daily_or_hourly, dict):
+                    for hour_str, value in daily_or_hourly.items():
+                        # Create datetime from date and hour
+                        try:
+                            dt_str = f"{date_str}{str(hour_str).zfill(2)}"
+                            dt = datetime.strptime(dt_str, "%Y%m%d%H")
+                            records.append({
+                                'datetime': dt,
+                                'parameter': param_name,
+                                'value': value
+                            })
+                        except (ValueError, TypeError):
+                            # Skip invalid datetime or value
+                            continue
+                else:
+                    # Scalar daily value: treat as daily at 00:00
+                    try:
+                        dt_str = f"{date_str}00"
+                        dt = datetime.strptime(dt_str, "%Y%m%d%H")
+                        records.append({
+                            'datetime': dt,
+                            'parameter': param_name,
+                            'value': daily_or_hourly
+                        })
+                    except (ValueError, TypeError):
+                        # If date format is unexpected, skip this entry
+                        continue
     
     # Create DataFrame
     df = pd.DataFrame(records)

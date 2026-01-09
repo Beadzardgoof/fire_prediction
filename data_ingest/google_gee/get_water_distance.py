@@ -21,6 +21,7 @@ Example usage in Jupyter notebook:
     print(f"Distance to nearest water: {distance:.2f} meters")
 """
 
+import ee
 import os
 import json
 import warnings
@@ -83,6 +84,13 @@ def _initialize_gee():
             "  1. Path to your service account JSON key file, or\n"
             "  2. JSON string containing the service account credentials"
         )
+    
+    # Clean up the path - strip quotes, whitespace, and control characters
+    gee_key = gee_key.strip('"\'')  # Remove quotes
+    # Remove control characters (form feeds, newlines, etc.)
+    gee_key = ''.join(c for c in gee_key if ord(c) >= 32 or c in '\n\r\t')
+    gee_key = gee_key.replace('\n', '').replace('\r', '').replace('\t', '')
+    gee_key = gee_key.strip()
     
     try:
         # Check if GEE_KEY is a file path
@@ -212,10 +220,12 @@ def _calculate_distance_to_water(
     # Compute distance transform: calculates Euclidean distance to nearest water pixel
     # The distance() method calculates distance to nearest non-zero (water) pixel
     # We invert the water image (1->0, 0->1) so distance is from land to water
-    distance_image = water_clipped.Not().distance(
-        kernel=None,  # Use default Euclidean distance
-        maxDistance=max_distance_meters
-    ).rename('distance')
+    # Note: distance() method doesn't accept maxDistance parameter in newer GEE API
+    # Instead, we clip the result to the max distance
+    distance_image = water_clipped.Not().distance().rename('distance')
+    
+    # Clip distance to max_distance_meters and mask values beyond max distance
+    distance_image = distance_image.clamp(0, max_distance_meters)
     
     # Clip to search region
     distance_image = distance_image.clip(search_region)

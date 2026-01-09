@@ -49,7 +49,12 @@ except ImportError:
 def _fetch_srtm_tile(latitude: float, longitude: float, api_key: str, 
                      buffer_degrees: float = 0.01) -> Optional[np.ndarray]:
     """
-    Fetch SRTM DEM tile data for a given location.
+    Fetch DEM tile data for a given location using the OpenTopography
+    Global DEM API.
+    
+    This replaces the older, placeholder NASA SRTM endpoint with a real,
+    documented service. We use a small bounding box around the point and
+    read the returned raster into a numpy array.
     
     Parameters:
     -----------
@@ -58,61 +63,72 @@ def _fetch_srtm_tile(latitude: float, longitude: float, api_key: str,
     longitude : float
         Longitude of the location
     api_key : str
-        NASA DEM API key
+        OpenTopography API key (stored in NASA_DEM_API_KEY env var)
     buffer_degrees : float
         Buffer around point in degrees for area query
         
     Returns:
     --------
     np.ndarray or None
-        DEM elevation data as numpy array
+        DEM elevation data as numpy array (2D)
     """
-    # NASA Earthdata API endpoint for SRTM data
-    # Using OpenTopography API or NASA Earthdata API
-    base_url = "https://api.nasa.gov/srtm/v1/elevation"
-    
-    # Try point query first
+    # Require rasterio for raster decoding
+    if not HAS_RASTERIO:
+        warnings.warn(
+            "rasterio is not installed; terrain fetching from OpenTopography "
+            "cannot decode raster. Please install rasterio or provide "
+            "precomputed elevation data."
+        )
+        return None
+
+    # OpenTopography Global DEM API endpoint
+    # See: https://portal.opentopography.org/apidocs/#/Public/getGlobalDem
+    base_url = "https://portal.opentopography.org/API/globaldem"
+
+    # Compute a small bounding box around the point
+    south = max(-90.0, latitude - buffer_degrees)
+    north = min(90.0, latitude + buffer_degrees)
+    west = max(-180.0, longitude - buffer_degrees)
+    east = min(180.0, longitude + buffer_degrees)
+
+    # Use a reasonably high‑resolution global DEM; SRTMGL3 is 90m (free, matches OT docs example).
     params = {
-        'lat': latitude,
-        'lon': longitude,
-        'api_key': api_key
+        "demtype": "SRTMGL3",
+        "south": south,
+        "north": north,
+        "west": west,
+        "east": east,
+        "outputFormat": "GTiff",
+        "API_Key": api_key,
     }
-    
+
     try:
-        response = requests.get(base_url, params=params, timeout=30)
+        response = requests.get(base_url, params=params, timeout=60)
+        # Build the request URL for debugging
+        request_url = response.url
         response.raise_for_status()
-        data = response.json()
-        
-        # Extract elevation value (point query)
-        if 'elevation' in data:
-            elevation_value = data['elevation']
-            # For point data, create a small array
-            # In production, you'd fetch actual tile data
-            return np.array([[elevation_value]])
-        
-        # Alternative: Try area query if available
-        if 'data' in data:
-            return np.array(data['data'])
-            
-        return None
-        
-    except requests.exceptions.RequestException:
-        # Fallback: Use OpenTopography API or direct tile download
-        # For now, return a simple elevation value
-        # In production, implement proper tile fetching
-        try:
-            # Alternative endpoint or method
-            alt_url = f"https://api.opentopography.org/raster/srtm?lat={latitude}&lon={longitude}&outputFormat=json"
-            response = requests.get(alt_url, timeout=30)
-            if response.status_code == 200:
-                data = response.json()
-                if 'elevation' in data:
-                    return np.array([[data['elevation']]])
-        except:
-            pass
-        
-        # If all else fails, return None
-        return None
+
+        # Open the returned GeoTIFF from memory
+        with rasterio.MemoryFile(response.content) as memfile:
+            with memfile.open() as dataset:
+                # Read first band
+                elevation = dataset.read(1)
+
+                # Replace NoData values with nan
+                nodata = dataset.nodata
+                if nodata is not None:
+                    elevation = elevation.astype(float)
+                    elevation[elevation == nodata] = np.nan
+
+                return elevation
+
+    except requests.exceptions.RequestException as e:
+        warnings.warn(f"Error fetching DEM from OpenTopography: {e}. URL: {request_url}")
+    except Exception as e:
+        warnings.warn(f"Error decoding DEM from OpenTopography: {e}. URL: {request_url}")
+
+    # If all else fails, return None
+    return None
 
 
 def _compute_slope(elevation: np.ndarray, cell_size: float = 30.0) -> np.ndarray:
@@ -308,8 +324,10 @@ def fetch_terrain_features(
     elevation_data = _fetch_srtm_tile(latitude, longitude, api_key, buffer_degrees)
     
     if elevation_data is None:
-        raise ValueError("Failed to fetch elevation data from NASA SRTM DEM API. "
-                        "Please check your API key and network connection.")
+        raise ValueError(
+            "Failed to fetch elevation data from OpenTopography Global DEM API. "
+            "Please verify NASA_DEM_API_KEY (OpenTopography key) and network access."
+        )
     
     # For point data, we'll use the single elevation value
     # In a full implementation, you'd fetch a tile and compute statistics

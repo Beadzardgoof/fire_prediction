@@ -88,6 +88,13 @@ def _initialize_gee():
             "  2. JSON string containing the service account credentials"
         )
     
+    # Clean up the path - strip quotes, whitespace, and control characters
+    gee_key = gee_key.strip('"\'')  # Remove quotes
+    # Remove control characters (form feeds, newlines, etc.)
+    gee_key = ''.join(c for c in gee_key if ord(c) >= 32 or c in '\n\r\t')
+    gee_key = gee_key.replace('\n', '').replace('\r', '').replace('\t', '')
+    gee_key = gee_key.strip()
+    
     try:
         # Check if GEE_KEY is a file path
         if os.path.isfile(gee_key):
