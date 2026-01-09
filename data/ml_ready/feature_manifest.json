@@ -1,0 +1,74 @@
+{
+  "total_samples": 100,
+  "total_features": 36,
+  "total_targets": 3,
+  "features": {
+    "meteorological": {
+      "count": 7,
+      "columns": [
+        "moisture_dryness_3day",
+        "moisture_wetness_3day",
+        "moisture_humidity_3day",
+        "fuel_conditioning_14day",
+        "weather_extreme_wind_12h",
+        "weather_extreme_precip_12h",
+        "ignition_soft_threshold"
+      ]
+    },
+    "terrain": {
+      "count": 6,
+      "columns": [
+        "terrain_elevation",
+        "terrain_slope",
+        "terrain_ruggedness",
+        "terrain_curvature",
+        "terrain_canyon",
+        "terrain_water_distance"
+      ]
+    },
+    "vegetation": {
+      "count": 10,
+      "columns": [
+        "veg_forest_conifer",
+        "veg_forest_broadleaf",
+        "veg_forest_mixed",
+        "veg_shrubland",
+        "veg_savanna",
+        "veg_grassland",
+        "veg_wetland",
+        "veg_cropland",
+        "veg_barren",
+        "veg_water"
+      ]
+    },
+    "fuel": {
+      "count": 10,
+      "columns": [
+        "fuel_conditioning_14day",
+        "fuel_load",
+        "fuel_category_grass",
+        "fuel_category_shrub",
+        "fuel_category_timber_understory",
+        "fuel_category_timber_crown",
+        "fuel_canopy_height",
+        "fuel_canopy_cover",
+        "fuel_surface",
+        "fuel_crown"
+      ]
+    },
+    "temporal": {
+      "count": 4,
+      "columns": [
+        "temporal_season_sin",
+        "temporal_season_cos",
+        "temporal_hour_sin",
+        "temporal_hour_cos"
+      ]
+    }
+  },
+  "targets": {
+    "ignition_probability": "float [0, 1] - Probability of fire ignition",
+    "fire_start_hour": "float [0, 24) - Hour of fire detection",
+    "fire_duration_hours": "float [1, 72] - Estimated fire duration in hours"
+  }
+}
