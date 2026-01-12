@@ -41,6 +41,9 @@ import requests
 import pandas as pd
 from datetime import datetime
 from io import StringIO
+import asyncio
+import aiohttp
+from typing import List, Dict, Optional
 
 # Try to load .env file if python-dotenv is available
 try:
@@ -193,7 +196,8 @@ def fetch_nasa_power_weather(
     site_elevation=None,
     wind_elevation=None,
     wind_surface=None,
-    return_dataframe=True
+    return_dataframe=True,
+    temporal='daily'
 ):
     """
     Fetch weather data from NASA POWER API.
@@ -273,8 +277,8 @@ def fetch_nasa_power_weather(
     ... )
     """
     
-    # Base API URL
-    base_url = 'https://power.larc.nasa.gov/api/temporal/hourly/point'
+    # Base API URL - use daily for efficiency (24x less data than hourly)
+    base_url = f'https://power.larc.nasa.gov/api/temporal/{temporal}/point'
     
     # Build query parameters
     params = {
@@ -306,30 +310,56 @@ def fetch_nasa_power_weather(
     if api_key:
         params['key'] = api_key
     
-    # Make API request
+    # Make API request with retry logic
     headers = {
         'accept': 'application/json'
     }
     
-    try:
-        response = requests.get(base_url, params=params, headers=headers, timeout=30)
-        response.raise_for_status()
-        
-        if output_format == 'json':
-            json_data = response.json()
-            if return_dataframe:
-                return _parse_nasa_power_json(json_data)
-            else:
-                return json_data
-        elif output_format == 'csv':
-            # Parse CSV response
-            return pd.read_csv(StringIO(response.text))
-        else:
-            return response.text
+    max_retries = 3
+    retry_delay = 2  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(base_url, params=params, headers=headers, timeout=30)
+            response.raise_for_status()
             
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching data from NASA POWER API: {e}")
-        raise
+            if output_format == 'json':
+                json_data = response.json()
+                if return_dataframe:
+                    return _parse_nasa_power_json(json_data)
+                else:
+                    return json_data
+            elif output_format == 'csv':
+                # Parse CSV response
+                return pd.read_csv(StringIO(response.text))
+            else:
+                return response.text
+                
+        except requests.exceptions.Timeout:
+            if attempt < max_retries - 1:
+                import time
+                print(f"  Timeout on attempt {attempt + 1}, retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+            else:
+                print(f"Error: NASA POWER API timeout after {max_retries} attempts")
+                return pd.DataFrame()  # Return empty DataFrame instead of raising
+                
+        except requests.exceptions.ConnectionError as e:
+            if attempt < max_retries - 1:
+                import time
+                print(f"  Connection error on attempt {attempt + 1}, retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                print(f"Error: NASA POWER API connection failed after {max_retries} attempts: {e}")
+                return pd.DataFrame()
+                
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching data from NASA POWER API: {e}")
+            return pd.DataFrame()  # Return empty DataFrame to continue processing
+    
+    return pd.DataFrame()
 
 
 def fetch_fire_prediction_weather(
@@ -417,7 +447,8 @@ def fetch_fire_prediction_weather(
     >>> # Calculate soft binary threshold (humidity/wetness vs temperature)
     """
     # Parameters needed for all fire prediction features
-    fire_params = 'RH2M,PRECTOT,WS10M,T2M'
+    # Include min/max values for better feature engineering
+    fire_params = 'RH2M,RH2M_MAX,RH2M_MIN,PRECTOT,WS10M,WS10M_MAX,T2M,T2M_MAX,T2M_MIN,PS'
     
     return fetch_nasa_power_weather(
         latitude=latitude,
@@ -436,6 +467,263 @@ def fetch_fire_prediction_weather(
         wind_surface=wind_surface,
         return_dataframe=return_dataframe
     )
+
+
+async def fetch_fire_prediction_weather_async(
+    session: aiohttp.ClientSession,
+    latitude: float,
+    longitude: float,
+    start_date: str,
+    end_date: str,
+    community: str = 'ag',
+    units: str = 'metric',
+    temporal: str = 'daily',
+    api_key: Optional[str] = None
+) -> Dict:
+    """
+    Async version of fetch_fire_prediction_weather for concurrent requests.
+    
+    Parameters:
+    -----------
+    session : aiohttp.ClientSession
+        Active aiohttp session for making requests
+    latitude : float
+        Latitude of the location
+    longitude : float
+        Longitude of the location
+    start_date : str
+        Start date in YYYYMMDD format
+    end_date : str
+        End date in YYYYMMDD format
+    community : str
+        Data community (default: 'ag')
+    units : str
+        Units system (default: 'metric')
+    temporal : str
+        Temporal resolution: 'daily' or 'hourly' (default: 'daily')
+    api_key : str, optional
+        NASA API key (if not provided, uses environment variable)
+        
+    Returns:
+    --------
+    dict
+        Dictionary with weather data or error info
+    """
+    # Get API key from environment if not provided
+    if api_key is None:
+        api_key = os.getenv('NASA_POWER_API_KEY')
+    
+    # Build URL and parameters
+    base_url = f'https://power.larc.nasa.gov/api/temporal/{temporal}/point'
+    fire_params = 'RH2M,RH2M_MAX,RH2M_MIN,PRECTOT,WS10M,WS10M_MAX,T2M,T2M_MAX,T2M_MIN,PS'
+    
+    params = {
+        'start': start_date,
+        'end': end_date,
+        'latitude': latitude,
+        'longitude': longitude,
+        'community': community,
+        'parameters': fire_params,
+        'format': 'json',
+        'units': units,
+        'header': 'true',
+        'time-standard': 'lst'
+    }
+    
+    if api_key:
+        params['key'] = api_key
+    
+    # Make async request with retry
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            async with session.get(base_url, params=params, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                if response.status == 200:
+                    json_data = await response.json()
+                    df = _parse_nasa_power_json(json_data)
+                    return {
+                        'success': True,
+                        'latitude': latitude,
+                        'longitude': longitude,
+                        'data': df
+                    }
+                elif response.status == 429:  # Rate limit
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** (attempt + 1)
+                        await asyncio.sleep(wait_time)
+                    else:
+                        return {
+                            'success': False,
+                            'latitude': latitude,
+                            'longitude': longitude,
+                            'error': 'Rate limit exceeded'
+                        }
+                else:
+                    return {
+                        'success': False,
+                        'latitude': latitude,
+                        'longitude': longitude,
+                        'error': f'HTTP {response.status}'
+                    }
+                    
+        except asyncio.TimeoutError:
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)
+            else:
+                return {
+                    'success': False,
+                    'latitude': latitude,
+                    'longitude': longitude,
+                    'error': 'Timeout'
+                }
+        except Exception as e:
+            return {
+                'success': False,
+                'latitude': latitude,
+                'longitude': longitude,
+                'error': str(e)
+            }
+    
+    return {
+        'success': False,
+        'latitude': latitude,
+        'longitude': longitude,
+        'error': 'Max retries exceeded'
+    }
+
+
+async def fetch_fire_prediction_weather_batch(
+    locations: List[Dict],
+    start_dates: List[str],
+    end_dates: List[str],
+    max_concurrent: int = 5,
+    units: str = 'metric',
+    temporal: str = 'daily'
+) -> List[Dict]:
+    """
+    Fetch weather data for multiple locations concurrently.
+    
+    Parameters:
+    -----------
+    locations : List[Dict]
+        List of location dicts with 'latitude', 'longitude', and optional 'fire_index'
+    start_dates : List[str]
+        List of start dates (one per location)
+    end_dates : List[str]
+        List of end dates (one per location)
+    max_concurrent : int
+        Maximum number of concurrent requests (default: 5)
+    units : str
+        Units system (default: 'metric')
+    temporal : str
+        Temporal resolution: 'daily' or 'hourly' (default: 'daily')
+        
+    Returns:
+    --------
+    List[Dict]
+        List of result dictionaries
+    """
+    api_key = os.getenv('NASA_POWER_API_KEY')
+    
+    async with aiohttp.ClientSession() as session:
+        # Create semaphore to limit concurrent requests
+        semaphore = asyncio.Semaphore(max_concurrent)
+        
+        async def fetch_with_semaphore(loc, start, end):
+            async with semaphore:
+                result = await fetch_fire_prediction_weather_async(
+                    session=session,
+                    latitude=loc['latitude'],
+                    longitude=loc['longitude'],
+                    start_date=start,
+                    end_date=end,
+                    units=units,
+                    temporal=temporal,
+                    api_key=api_key
+                )
+                # Add fire_index if provided
+                if 'fire_index' in loc:
+                    result['fire_index'] = loc['fire_index']
+                return result
+        
+        # Create tasks
+        tasks = [
+            fetch_with_semaphore(loc, start, end)
+            for loc, start, end in zip(locations, start_dates, end_dates)
+        ]
+        
+        # Execute all tasks concurrently
+        results = await asyncio.gather(*tasks)
+        
+    return results
+
+
+def fetch_fire_prediction_weather_batch_sync(
+    locations: List[Dict],
+    start_dates: List[str],
+    end_dates: List[str],
+    max_concurrent: int = 5,
+    units: str = 'metric',
+    temporal: str = 'daily'
+) -> List[Dict]:
+    """
+    Synchronous wrapper for batch fetching weather data concurrently.
+    
+    This is the main function to use in notebooks/scripts for concurrent fetching.
+    
+    Parameters:
+    -----------
+    locations : List[Dict]
+        List of location dicts with 'latitude', 'longitude', and optional 'fire_index'
+    start_dates : List[str]
+        List of start dates (one per location)
+    end_dates : List[str]
+        List of end dates (one per location)
+    max_concurrent : int
+        Maximum number of concurrent requests (default: 5)
+    units : str
+        Units system (default: 'metric')
+    temporal : str
+        Temporal resolution: 'daily' or 'hourly' (default: 'daily')
+        
+    Returns:
+    --------
+    List[Dict]
+        List of result dictionaries with weather data
+        
+    Examples:
+    ---------
+    >>> locations = [
+    ...     {'latitude': 40.0, 'longitude': -100.0, 'fire_index': 0},
+    ...     {'latitude': 41.0, 'longitude': -101.0, 'fire_index': 1}
+    ... ]
+    >>> start_dates = ['20250101', '20250101']
+    >>> end_dates = ['20250114', '20250114']
+    >>> results = fetch_fire_prediction_weather_batch_sync(locations, start_dates, end_dates)
+    >>> for r in results:
+    ...     if r['success']:
+    ...         print(f"Fire {r['fire_index']}: {len(r['data'])} days of data")
+    """
+    # Check if we're already in an event loop (e.g., Jupyter with IPython)
+    try:
+        loop = asyncio.get_running_loop()
+        # We're in an existing event loop, use nest_asyncio if available
+        try:
+            import nest_asyncio
+            nest_asyncio.apply()
+            return asyncio.run(fetch_fire_prediction_weather_batch(
+                locations, start_dates, end_dates, max_concurrent, units, temporal
+            ))
+        except ImportError:
+            # nest_asyncio not available, fall back to creating tasks
+            return loop.run_until_complete(fetch_fire_prediction_weather_batch(
+                locations, start_dates, end_dates, max_concurrent, units, temporal
+            ))
+    except RuntimeError:
+        # No event loop running, safe to use asyncio.run()
+        return asyncio.run(fetch_fire_prediction_weather_batch(
+            locations, start_dates, end_dates, max_concurrent, units, temporal
+        ))
 
 
 # Backward compatibility alias
