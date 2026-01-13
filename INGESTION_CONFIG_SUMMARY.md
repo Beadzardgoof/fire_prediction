@@ -235,3 +235,5 @@ ml_ready.to_parquet(ML_READY_OUTPUT)
 
 **Summary**: The ingestion notebook is now fully configured for medium-scale training with 3000 samples, diverse geographic and biome sampling, comprehensive GEE feature extraction, and built-in validation. All parameters are centralized and easy to modify.
 
+
+

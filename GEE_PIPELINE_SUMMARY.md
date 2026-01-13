@@ -269,3 +269,5 @@ GEE_FIRE_DATE_END = '2023-12-31'
 
 **Your pipeline now uses GEE for everything except the final ML training. All data is temporally and spatially aligned!** 🎉
 
+
+
