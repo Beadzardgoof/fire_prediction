@@ -1,7 +1,7 @@
 {
-  "total_samples": 3000,
+  "total_samples": 6000,
   "total_features": 36,
-  "total_targets": 3,
+  "total_targets": 4,
   "features": {
     "meteorological": {
       "count": 7,
