@@ -171,7 +171,7 @@ def _get_modis_landcover(date: Optional[str] = None, classification_scheme: str 
     ee.Image
         Land cover classification image
     """
-    modis_lc = ee.ImageCollection("MODIS/006/MCD12Q1")
+    modis_lc = ee.ImageCollection("MODIS/061/MCD12Q1")
     
     if date:
         from datetime import datetime
@@ -268,11 +268,13 @@ def _get_esa_cci_landcover(date: Optional[str] = None):
 def _extract_forest_types_one_hot(
     point: ee.Geometry,
     landcover_image: ee.Image,
-    scale: float = 250.0,  # MODIS resolution is 500m, using 250m for sampling
+    scale: float = 500.0,  # MODIS native resolution is 500m
     classification_scheme: str = 'IGBP'
 ) -> Dict[str, float]:
     """
     Extract forest type classification at a point and return as one-hot encoded features.
+    
+    FIXED: Uses reduceRegion() instead of sample() for proper point extraction.
     
     Parameters:
     -----------
@@ -281,7 +283,7 @@ def _extract_forest_types_one_hot(
     landcover_image : ee.Image
         Land cover classification image
     scale : float
-        Scale/resolution in meters for sampling (default: 250m for MODIS)
+        Scale/resolution in meters for sampling (default: 500m to match MODIS native resolution)
     classification_scheme : str
         Classification scheme used (for interpreting values)
         
@@ -290,32 +292,53 @@ def _extract_forest_types_one_hot(
     dict
         Dictionary with one-hot encoded forest type features
     """
-    # Sample land cover value at the point
+    # Extract land cover value at the point using reduceRegion (correct method for point extraction)
     try:
-        sample = landcover_image.sample(
-            region=point,
+        # FIXED: Use reduceRegion() instead of sample() for point extraction
+        # This is the correct GEE method for getting pixel values at a specific point
+        point_value = landcover_image.reduceRegion(
+            reducer=ee.Reducer.first(),  # Get the first (and only) pixel value at point
+            geometry=point,
             scale=scale,
-            numPixels=1,
-            geometries=False
+            maxPixels=1
         )
-        sample_info = sample.first().getInfo()
         
-        # Get the land cover class value
-        # The property name depends on the band selected
-        prop_name = list(sample_info.get('properties', {}).keys())[0] if sample_info.get('properties') else None
-        if prop_name:
-            lc_value = sample_info['properties'][prop_name]
+        # Get the result
+        point_dict = point_value.getInfo()
+        
+        # Get the land cover class value - use the band name we selected
+        # MODIS MCD12Q1 band names: LC_Type1, LC_Type2, etc.
+        if classification_scheme == 'IGBP':
+            band_name = 'LC_Type1'
         else:
-            # Fallback: try common band names
-            lc_value = sample_info.get('properties', {}).get('LC_Type1') or \
-                      sample_info.get('properties', {}).get('Map') or \
-                      sample_info.get('properties', {}).get('classification')
+            band_map = {
+                'UMD': 'LC_Type2',
+                'LCCS1': 'LC_Type3',
+                'LCCS2': 'LC_Type4',
+                'PFT': 'LC_Type5',
+                'LAI': 'LC_Prop1'
+            }
+            band_name = band_map.get(classification_scheme, 'LC_Type1')
+        
+        # Extract the value for the specific band
+        lc_value = point_dict.get(band_name)
+        
+        # Handle masked/missing values
+        if lc_value is None:
+            # Try alternative property names
+            for key in ['LC_Type1', 'Map', 'classification']:
+                if key in point_dict:
+                    lc_value = point_dict[key]
+                    break
         
         if lc_value is None:
             lc_value = 255  # Unclassified
+        else:
+            # Ensure it's an integer (MODIS classes are integers)
+            lc_value = int(float(lc_value))
         
     except Exception as e:
-        warnings.warn(f"Error sampling land cover: {e}. Using unclassified.")
+        warnings.warn(f"Error extracting land cover at point: {e}. Using unclassified.")
         lc_value = 255
     
     # Create one-hot encoding for forest types
@@ -376,7 +399,7 @@ def get_forest_types(
     fire_date: Optional[str] = None,
     data_source: str = 'MODIS',
     classification_scheme: str = 'IGBP',
-    scale_meters: float = 250.0
+    scale_meters: float = 500.0
 ) -> Dict[str, float]:
     """
     Get forest types for a location as one-hot encoded categorical features.
@@ -397,7 +420,7 @@ def get_forest_types(
     classification_scheme : str, optional
         For MODIS only: 'IGBP', 'UMD', 'LCCS1', 'LCCS2', 'PFT', or 'LAI' (default: 'IGBP')
     scale_meters : float, optional
-        Scale/resolution in meters for sampling (default: 250m)
+        Scale/resolution in meters for sampling (default: 500m to match MODIS native resolution)
         MODIS native resolution: 500m, ESA: 10m
         
     Returns:
@@ -520,10 +543,10 @@ def _derive_fuel_characteristics_globally(
         start_date = '2023-01-01'
         end_date = '2024-01-01'
     
-    # Get MODIS vegetation indices
-    modis_ndvi = ee.ImageCollection("MODIS/006/MOD13Q1")  # 16-day NDVI/EVI
-    modis_npp = ee.ImageCollection("MODIS/006/MOD17A3HGF")  # Annual NPP
-    modis_lc = ee.ImageCollection("MODIS/006/MCD12Q1")  # Land Cover
+    # Get MODIS vegetation indices (updated to MODIS/061 from deprecated MODIS/006)
+    modis_ndvi = ee.ImageCollection("MODIS/061/MOD13Q1")  # 16-day NDVI/EVI
+    modis_npp = ee.ImageCollection("MODIS/061/MOD17A3HGF")  # Annual NPP
+    modis_lc = ee.ImageCollection("MODIS/061/MCD12Q1")  # Land Cover
     
     # Filter by date
     ndvi_collection = modis_ndvi.filterDate(start_date, end_date)
@@ -633,12 +656,12 @@ def _derive_fuel_characteristics_globally(
 def _extract_fuel_features_from_images(
     point: ee.Geometry,
     fuel_layers_dict: Dict[str, ee.Image],
-    scale: float = 30.0
+    scale: float = 500.0
 ) -> Dict[str, float]:
     """
     Extract fuel features at a point from fuel layer images.
     
-    Handles both LANDFIRE pre-computed values and derived values from vegetation.
+    FIXED: Uses reduceRegion() instead of sample() for proper point extraction.
     
     Parameters:
     -----------
@@ -648,7 +671,7 @@ def _extract_fuel_features_from_images(
         Dictionary with fuel layer images. For LANDFIRE: 'fuel_model', 'canopy_bulk_density', 'canopy_base_height'.
         For derived: 'canopy_height', 'canopy_cover', 'surface_fuel_load', 'crown_fuel_load'.
     scale : float
-        Scale/resolution in meters for sampling (default: 30m for LANDFIRE, 250m for MODIS)
+        Scale/resolution in meters for sampling (default: 500m to match MODIS native resolution)
         
     Returns:
     --------
@@ -658,29 +681,25 @@ def _extract_fuel_features_from_images(
     fuel_features = {}
     
     try:
-        # Sample all fuel layer images
+        # FIXED: Use reduceRegion() instead of sample() for point extraction
         for layer_name, layer_image in fuel_layers_dict.items():
-            layer_sample = layer_image.sample(
-                region=point,
+            point_value = layer_image.reduceRegion(
+                reducer=ee.Reducer.first(),
+                geometry=point,
                 scale=scale,
-                numPixels=1,
-                geometries=False
+                maxPixels=1
             )
-            layer_info = layer_sample.first().getInfo()
             
-            # Get the property value (band name may vary)
-            props = layer_info.get('properties', {})
-            if props:
-                # Try to get value by layer name first, then try common band names
-                layer_value = props.get(layer_name) or props.get('b1') or props.get(layer_name.lower())
-                # Get first numeric property if name doesn't match
-                if layer_value is None:
-                    for key, val in props.items():
-                        if isinstance(val, (int, float)):
-                            layer_value = val
-                            break
-            else:
-                layer_value = None
+            point_dict = point_value.getInfo()
+            
+            # Get the value - try layer name first, then common alternatives
+            layer_value = point_dict.get(layer_name)
+            if layer_value is None:
+                # Try alternative property names
+                for key in ['b1', layer_name.lower(), 'classification']:
+                    if key in point_dict:
+                        layer_value = point_dict[key]
+                        break
             
             if layer_value is not None:
                 fuel_features[layer_name] = float(layer_value)
@@ -688,7 +707,7 @@ def _extract_fuel_features_from_images(
                 fuel_features[layer_name] = 0.0
         
     except Exception as e:
-        warnings.warn(f"Error sampling fuel data: {e}. Using default values.")
+        warnings.warn(f"Error extracting fuel data at point: {e}. Using default values.")
         # Set defaults based on what we expect
         for layer_name in fuel_layers_dict.keys():
             fuel_features[layer_name] = 0.0
@@ -735,7 +754,7 @@ def get_fuel_layers(
     latitude: float,
     longitude: float,
     fire_date: Optional[str] = None,
-    scale_meters: float = 250.0
+    scale_meters: float = 500.0
 ) -> Dict[str, float]:
     """
     Get fuel layers/load for a location (always derived globally for consistency).
@@ -759,7 +778,7 @@ def get_fuel_layers(
         Date of the fire event in format 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:mm:ss'
         If provided, derives fuel data for that time period.
     scale_meters : float, optional
-        Scale/resolution in meters for sampling (default: 250m for MODIS)
+        Scale/resolution in meters for sampling (default: 500m to match MODIS native resolution)
         
     Returns:
     --------
@@ -834,7 +853,7 @@ def get_vegetation_features_for_block_centroid(
     include_forest_types: bool = True,
     include_fuel_layers: bool = True,
     forest_data_source: str = 'MODIS',
-    scale_meters: float = 250.0
+    scale_meters: float = 500.0
 ) -> Dict[str, float]:
     """
     Get both forest types and fuel layers for a block centroid.
@@ -857,7 +876,7 @@ def get_vegetation_features_for_block_centroid(
     forest_data_source : str, optional
         Data source for forest types: 'MODIS' or 'ESA' (default: 'MODIS')
     scale_meters : float, optional
-        Scale/resolution in meters for sampling (default: 250m)
+        Scale/resolution in meters for sampling (default: 500m to match MODIS native resolution)
         
     Returns:
     --------
